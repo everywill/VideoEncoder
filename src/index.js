@@ -1,77 +1,21 @@
-import { loadWasm } from "../loadwasm.js";
-import x264 from '../x264.js';
+import { loadWasm, convertToYUVPlane } from './utils.js';
+import x264_encoder from '../x264_encoder/lib/encoder.js';
 
-const convertToYUVPlane = (frame) => {
-    const uin8 = frame.data;
-    const width = frame.width;
-    const height = frame.height;
-    const size = width * height;
+class WasmLoader {
+    module
+    h264_error
+    h264_output
 
-    const yuv = new Uint8Array(size + (size >> 1));
-    let r, g, b;
-    let i = 0;
-    let upos = size;
-    let vpos = size + (size >> 2);
-
-    for( let line = 0; line < height; ++line ) {
-      if( !(line % 2) ) {
-        for( let x = 0; x < width; x += 2 ) {
-          r = uin8[4 * i];
-          g = uin8[4 * i + 1];
-          b = uin8[4 * i + 2];
-
-          yuv[i++] = ((66*r + 129*g + 25*b) >> 8) + 16;
-          yuv[upos++] = ((-38*r + -74*g + 112*b) >> 8) + 128;
-          yuv[vpos++] = ((112*r + -94*g + -18*b) >> 8) + 128;
-
-          r = uin8[4 * i];
-          g = uin8[4 * i + 1];
-          b = uin8[4 * i + 2];
-
-          yuv[i++] = ((66*r + 129*g + 25*b) >> 8) + 16;
-        }
-      } else {
-        for( let x = 0; x < width; x += 1 ) {
-          r = uin8[4 * i];
-          g = uin8[4 * i + 1];
-          b = uin8[4 * i + 2];
-
-          yuv[i++] = ((66*r + 129*g + 25*b) >> 8) + 16;
-        }
-      }
-    }
-
-    return yuv;
-  }
-
-export class XVideoEncoder {
-    get encodeQueueSize() {
-        console.error('unimplemented!');
-    }
-
-    get state() {
-        return this._state;
-    }
-
-    constructor(init) {
-        const { output, error } = init;
-        if(!output) {
-            throw `Failed to construct 'VideoEncoder': Failed to read the 'output' property from 'VideoEncoderInit'`;
-        }
-        if(!error) {
-            throw `Failed to construct 'VideoEncoder': Failed to read the 'error' property from 'VideoEncoderInit'`;
-        }
-        this.h264_error = error;
-        this._state = 'unconfigured';
-        this._n = loadWasm('/X264.wasm')
-            .then(wasmBinary => x264({
+    async LoadWasm() {
+       return loadWasm(this.wasmUrl)
+            .then(wasmBinary => x264_encoder({
                 instantiateWasm: (imports, successCallback) => {
                     imports.env.h264_write_polyfill = (ptr, number) => {
-                        output({
+                        this.h264_output({
                             copyTo: (dest) => {
                                 const l = dest.length;
                                 for(let i = 0; i < l; i++) {
-                                    dest[i] = this._m.HEAPU8[ptr + i];
+                                    dest[i] = this.module.HEAPU8[ptr + i];
                                 }
                             },
                             byteLength: number,
@@ -83,18 +27,49 @@ export class XVideoEncoder {
                         });
                 }
             })).then(module => {
-                this._m = module;
-                this.encoder = new this._m.X264Encoder();
-            })
+                this.module = module;
+                return this.module;
+            });
+    }
+}
+const encoderWasmLoader = new WasmLoader();
+
+export class XVideoEncoder {
+    get encodeQueueSize() {
+        console.error('unimplemented!');
     }
 
-    configure(config) {
-        this._state = 'configured';
+    get state() {
+        return this._state;
+    }
+
+    constructor(init) {
+        const { output, error, wasmUrl } = init;
+        if(!output) {
+            throw `Failed to construct 'VideoEncoder': Failed to read the 'output' property from 'VideoEncoderInit'`;
+        }
+        if(!error) {
+            throw `Failed to construct 'VideoEncoder': Failed to read the 'error' property from 'VideoEncoderInit'`;
+        }
+        this.wasmCtx = encoderWasmLoader;
+        this.wasmCtx.wasmUrl = wasmUrl;
+        this.wasmCtx.h264_error = error;
+        this.wasmCtx.h264_output = output;
+        this._state = 'unconfigured';
+        this._n = this._initialize();
+    }
+
+    _initialize() {
+        return this.wasmCtx.LoadWasm();
+    }
+
+    async configure(config) {
         this._width = config.width;
         this._height = config.height;
-        return this._n.then(() => {
-            this.encoder.configure(this._width, this._height);
-        });
+        await this._n;
+        this.encoder = new this.wasmCtx.module.X264Encoder();
+        this.encoder.configure(this._width, this._height);
+        this._state = 'configured';
     }
 
     encode(frame, options) {
@@ -102,14 +77,14 @@ export class XVideoEncoder {
             throw `Failed to execute 'encode' on 'VideoEncoder': Cannot call 'encode' on an unconfigured codec.`
         }
         if(!frame instanceof XVideoFrame) {
-
+            throw ''
         }
 
         const yuv = convertToYUVPlane(frame);
-        const yuvPtr = this._m._malloc(yuv.byteLength);
-        this._m.HEAPU8.set(yuv, yuvPtr);
+        const yuvPtr = this.wasmCtx.module._malloc(yuv.byteLength);
+        this.wasmCtx.module.HEAPU8.set(yuv, yuvPtr);
         this.encoder.encode(yuvPtr);
-        this._m._free(yuvPtr);
+        this.wasmCtx.module._free(yuvPtr);
     }
 
     flush() {

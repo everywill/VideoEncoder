@@ -1,11 +1,12 @@
 {
   "name": "video-encoder",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "VideoEncoder of WebCodec polyfill with x264 and Webassembly",
   "main": "src/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "serve ."
+    "dev": "serve .",
+    "build": "rollup src/index.js --file lib/videoencoder.js --format es && cp x264_encoder/lib/encoder.wasm lib/videoencoder.wasm"
   },
   "repository": {
     "type": "git",
@@ -23,6 +24,7 @@
   },
   "homepage": "https://github.com/everywill/video-encoder#readme",
   "devDependencies": {
+    "rollup": "^2.79.0",
     "serve": "^12.0.1"
   }
 }

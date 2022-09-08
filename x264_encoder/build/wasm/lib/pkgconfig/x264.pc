@@ -1,0 +1,11 @@
+prefix=
+exec_prefix=${prefix}
+libdir=/Users/panchen/github/x264-simd/build/wasm/lib
+includedir=/Users/panchen/github/x264-simd/build/wasm/include
+
+Name: x264
+Description: H.264 (MPEG4 AVC) encoder library
+Version: 0.161.x
+Libs: -L/Users/panchen/github/x264-simd/build/wasm/lib -lx264 -lm
+Libs.private: 
+Cflags: -I/Users/panchen/github/x264-simd/build/wasm/include 
