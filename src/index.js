@@ -1,5 +1,5 @@
 import { loadWasm, convertToYUVPlane } from './utils.js';
-import x264_encoder from '../x264_encoder/lib/encoder.js';
+import x264_encoder from '../bin/webassembly_Release/X264Encoder.js';
 
 class WasmLoader {
     module

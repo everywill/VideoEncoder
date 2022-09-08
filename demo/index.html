@@ -14,7 +14,7 @@
         ></canvas>
         <script type="module">
             import loadEncoder from "/demo/mp4-encoder.js";
-            import { XVideoEncoder, XVideoFrame } from "/lib/videoencoder.js";
+            import { XVideoEncoder, XVideoFrame } from "/lib/video-encoder.js";
 
             const usePolyfill = true;
 
@@ -115,7 +115,7 @@
                     // framerate: fps,
                 };
 
-                const encoder = usePolyfill ? new XVideoEncoder({...init, wasmUrl: '/lib/videoencoder.wasm'}) : new VideoEncoder(init);
+                const encoder = usePolyfill ? new XVideoEncoder({...init, wasmUrl: '/lib/video-encoder.wasm'}) : new VideoEncoder(init);
                 await encoder.configure(config);
 
                 return {
